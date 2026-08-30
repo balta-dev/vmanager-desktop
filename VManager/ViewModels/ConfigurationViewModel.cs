@@ -79,6 +79,34 @@ namespace VManager.ViewModels
                 _    => "English"
             };
         }
+
+        /// <summary>Aplica el idioma guardado sin crear el ViewModel completo de configuración.</summary>
+        public static void ApplySavedLanguage(string? languageDisplayName)
+        {
+            if (string.IsNullOrEmpty(languageDisplayName))
+                return;
+
+            var code = languageDisplayName switch
+            {
+                "English" => "en",
+                "Español" => "es",
+                "Français" => "fr",
+                "Deutsch" => "de",
+                "Italiano" => "it",
+                "Polski" => "pl",
+                "Português" => "pt",
+                "Русский" => "ru",
+                "Українська" => "uk",
+                "हिंदी" => "hi",
+                "日本語" => "ja",
+                "한국어" => "ko",
+                "中文" => "zh",
+                "عربي" => "ar",
+                _ => "en"
+            };
+
+            LocalizationService.Instance.CurrentLanguage = code;
+        }
         
         private string _idiomaSeleccionado = GetDefaultIdioma();
         public string IdiomaSeleccionado
@@ -117,10 +145,10 @@ namespace VManager.ViewModels
                     _ => null
                 };
 
-                if (mainVM != null && mainVM.CurrentView == mainVM._configuration)
+                if (mainVM != null && ReferenceEquals(mainVM.CurrentView, this))
                 {
                     mainVM.CurrentView = null;
-                    mainVM.CurrentView = mainVM._configuration;
+                    mainVM.CurrentView = this;
                 }
             }
         }
@@ -353,8 +381,15 @@ namespace VManager.ViewModels
             
             _config = ConfigurationService.Current;
 
-            // Inicializar propiedades
-            IdiomaSeleccionado = _config.Language;
+            // Inicializar propiedades (idioma sin setter para evitar reentrada durante la construcción)
+            _idiomaSeleccionado = string.IsNullOrEmpty(_config.Language) ? GetDefaultIdioma() : _config.Language;
+            ApplySavedLanguage(_idiomaSeleccionado);
+            OpenConfig = string.Format(
+                L["Configuration.Fields.Welcome"],
+                Environment.UserName.Length > 0
+                    ? Environment.UserName[0] + Environment.UserName.Substring(1)
+                    : Environment.UserName);
+
             EnableSounds = _config.EnableSounds;
             EnableNotifications = _config.EnableNotifications;
             UseCustomIcon = _config.UseCustomIcon;

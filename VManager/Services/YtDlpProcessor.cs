@@ -17,7 +17,7 @@ namespace VManager.Services;
 
 public class YtDlpProcessor
 {
-    private readonly string _ytDlpPath = YtDlpManager.YtDlpPath;
+    private string YtDlpPath => YtDlpManager.YtDlpPath;
     public LocalizationService L => LocalizationService.Instance;
 
     private static string? DetectBrowser()
@@ -240,7 +240,7 @@ public class YtDlpProcessor
     {
         var psi = new ProcessStartInfo
         {
-            FileName = _ytDlpPath,
+            FileName = YtDlpPath,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -315,7 +315,7 @@ public class YtDlpProcessor
     {
         var psi = new ProcessStartInfo
         {
-            FileName = _ytDlpPath,
+            FileName = YtDlpPath,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -377,7 +377,7 @@ public class YtDlpProcessor
         
         var psi = new ProcessStartInfo
         {
-            FileName = _ytDlpPath,
+            FileName = YtDlpPath,
             RedirectStandardError = true,
             RedirectStandardOutput = true,
             UseShellExecute = false,

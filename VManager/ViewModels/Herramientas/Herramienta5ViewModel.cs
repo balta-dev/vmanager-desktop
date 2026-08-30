@@ -22,6 +22,13 @@ namespace VManager.ViewModels.Herramientas
     [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)]
     public class Herramienta5ViewModel : CodecViewModelBase
     {
+        private static async Task<YtDlpProcessor> CreateYtDlpProcessorAsync()
+        {
+            await YtDlpManager.EnsureInitialized();
+            await DenoManager.EnsureInitialized();
+            return new YtDlpProcessor();
+        }
+
         // ── Formatos fijos para items de playlist ─────────────────
         private static readonly ObservableCollection<VManager.Models.VideoFormat> PlaylistFormats = new()
         {
@@ -271,7 +278,7 @@ namespace VManager.ViewModels.Herramientas
 
             try
             {
-                var processor = new YtDlpProcessor();
+                var processor = await CreateYtDlpProcessorAsync();
                 var playlistInfo = await processor.GetPlaylistInfoAsync(url);
 
                 // Quitar el placeholder
@@ -406,7 +413,7 @@ namespace VManager.ViewModels.Herramientas
         {
             try
             {
-                var processor = new YtDlpProcessor();
+                var processor = await CreateYtDlpProcessorAsync();
                 var (info, cookiesProblem, usedCookies) =
                     await processor.GetVideoInfoWithDetectionAsync(videoItem.Url);
                 
@@ -569,7 +576,7 @@ namespace VManager.ViewModels.Herramientas
 
             try
             {
-                var processor = new YtDlpProcessor();
+                var processor = await CreateYtDlpProcessorAsync();
 
                 IsConverting = true;
                 IsOperationRunning = true;

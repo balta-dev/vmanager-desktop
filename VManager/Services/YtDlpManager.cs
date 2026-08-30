@@ -17,6 +17,19 @@ public static class YtDlpManager
 
     private static readonly SemaphoreSlim _extractLock = new(1, 1);
 
+    private static Task? _initializeTask;
+    private static readonly object InitLock = new();
+
+    /// <summary>Inicializa yt-dlp bajo demanda (p. ej. al abrir VDownload).</summary>
+    public static Task EnsureInitialized()
+    {
+        if (_initializeTask != null)
+            return _initializeTask;
+
+        lock (InitLock)
+            return _initializeTask ??= Initialize();
+    }
+
     public static async Task Initialize()
     {
         string targetFile = OperatingSystem.IsWindows() ? "yt-dlp.exe"

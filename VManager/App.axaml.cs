@@ -36,11 +36,8 @@ public partial class App : Application
 
             if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
             {
-                // Trabajo pesado fuera del hilo UI
-                ExtractThemes();
-                Console.WriteLine($"[STARTUP] [{MainWindow.StartupStopwatch?.ElapsedMilliseconds}ms] ExtractThemes ejecutado");
-                
-                // Inicializar el servicio de pausa global temprano y de forma predecible
+                var extractThemesTask = Task.Run(ExtractThemes);
+
                 _ = GlobalPauseService.Instance;
                 Console.WriteLine($"[STARTUP] [{MainWindow.StartupStopwatch?.ElapsedMilliseconds}ms] GlobalPauseService inicializado");
                 
@@ -49,8 +46,11 @@ public partial class App : Application
 
                 var savedTheme = config.ThemeName ?? "Default";
                     
-                Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(async () =>
                 {
+                    await extractThemesTask;
+                    Console.WriteLine($"[STARTUP] [{MainWindow.StartupStopwatch?.ElapsedMilliseconds}ms] ExtractThemes ejecutado");
+
                     ThemeService.Instance.Apply(savedTheme);
                     Console.WriteLine($"[STARTUP] [{MainWindow.StartupStopwatch?.ElapsedMilliseconds}ms] ThemeService.Instance.Apply(savedTheme)");
 

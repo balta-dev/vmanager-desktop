@@ -3,10 +3,8 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
 using VManager.Services;
-using VManager.Services.Models;
 using VManager.Splash;
 using VManager.Views;
 
@@ -17,28 +15,6 @@ sealed class Program
     private static readonly string LogsFolder = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "VManager", "logs");
-    
-    private static readonly string ConfigPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "VManager",
-        "config.json");
-    
-    private static bool IsLoggingEnabled()
-    {
-        if (!File.Exists(ConfigPath))
-            return true; // default seguro
-
-        try
-        {
-            var json = File.ReadAllText(ConfigPath);
-            var cfg = JsonSerializer.Deserialize<LogConfig>(json, VManagerJsonContext.Default.LogConfig);
-            return cfg?.Log ?? true;
-        }
-        catch
-        {
-            return true;
-        }
-    }
     
     static string ExtractBannerToTemp()
     {
@@ -71,7 +47,7 @@ sealed class Program
         
         t0 = sw.ElapsedMilliseconds;
         
-        if (IsLoggingEnabled())
+        if (ConfigurationService.Current.Log)
         {
             
             var logFilePath = Path.Combine(
@@ -99,15 +75,7 @@ sealed class Program
         
         var _ = FFmpegManager.Initialize();
         Console.WriteLine($"[STARTUP] [{sw.ElapsedMilliseconds}ms] FFmpegManager.Initialize() retornó (delta: {sw.ElapsedMilliseconds - t0}ms)");
-    
-        t0 = sw.ElapsedMilliseconds;
-        var __ = YtDlpManager.Initialize();
-        Console.WriteLine($"[STARTUP] [{sw.ElapsedMilliseconds}ms] YtDlpManager.Initialize() retornó (delta: {sw.ElapsedMilliseconds - t0}ms)");
-    
-        t0 = sw.ElapsedMilliseconds;
-        var ___ = DenoManager.Initialize();
-        Console.WriteLine($"[STARTUP] [{sw.ElapsedMilliseconds}ms] DenoManager.Initialize() retornó (delta: {sw.ElapsedMilliseconds - t0}ms)");
-    
+
         Console.WriteLine($"[STARTUP] [{sw.ElapsedMilliseconds}ms] Arrancando Avalonia...");
 
         // Arrancar Avalonia

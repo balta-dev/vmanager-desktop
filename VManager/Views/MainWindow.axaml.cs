@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using System.Linq;
@@ -117,9 +118,6 @@ namespace VManager.Views
             
             InitializeComponent();
             
-            SoundBehaviour.Attach(this);
-            //_ = SoundManager.Play("dummy.wav");
-            
             var accentObs = this.GetResourceObservable("SystemAccentColor")!
                 .OfType<Color>()
                 .DistinctUntilChanged()
@@ -135,26 +133,36 @@ namespace VManager.Views
                 });
             
             this.Opened += (_, _) => {
-                
-                if (DataContext is MainWindowViewModel vm)
-                {
-                    var configVM = vm.Configuration; 
-                    configVM.WhenAnyValue(x => x.SelectedColor) 
-                        .Subscribe(_ => ApplyCustomAccent());
-                    configVM.WhenAnyValue(x => x.UseCustomDecorations)
-                        .Subscribe(_ => ApplyDecorationMode());
-                    configVM.WhenAnyValue(x => x.ShowThemeToggleButton)
-                        .Subscribe(_ => AdaptSplitView());
-                } 
-                
                 StartupStopwatch?.Stop();
                 Console.WriteLine($"[DEBUG]: Startup en {StartupStopwatch!.ElapsedMilliseconds} ms");
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    SoundBehaviour.Attach(this);
+
+                    if (DataContext is MainWindowViewModel vm)
+                    {
+                        var configVM = vm.Configuration;
+                        configVM.WhenAnyValue(x => x.SelectedColor)
+                            .Subscribe(_ => ApplyCustomAccent());
+                        configVM.WhenAnyValue(x => x.UseCustomDecorations)
+                            .Subscribe(_ => ApplyDecorationMode());
+                        configVM.WhenAnyValue(x => x.ShowThemeToggleButton)
+                            .Subscribe(_ => AdaptSplitView());
+                    }
+                }, DispatcherPriority.Background);
             };
             
             LocalizationService.Instance.PropertyChanged += OnLocalizationChanged;
             
-            this.Opened += async (_, _) => LaunchUpdater();
+            this.Opened += async (_, _) =>
+            {
+                await Task.Delay(3000);
+                LaunchUpdater();
+            };
             this.Closing += MainWindow_Closing;
+            this.Closed += (_, _) =>
+                LocalizationService.Instance.PropertyChanged -= OnLocalizationChanged;
             this.KeyDown += OnKeyDown;
             MainSplitView.AddHandler(
                 InputElement.KeyDownEvent,
@@ -388,14 +396,14 @@ namespace VManager.Views
         
         private Color GetSystemAccentColor()
         {
-            // 1️⃣ Intentar obtener el color seleccionado del ViewModel, si existe
-            if (DataContext is MainWindowViewModel vm && vm.Configuration.SelectedColor.HasValue)
+            var customColor = ConfigurationService.Current.SelectedColor;
+            if (customColor.HasValue)
             {
-                Console.WriteLine($"[GetSystemAccentColor] Usando color custom: {vm.Configuration.SelectedColor.Value}");
-                return vm.Configuration.SelectedColor.Value;
+                Console.WriteLine($"[GetSystemAccentColor] Usando color custom: {customColor.Value}");
+                return customColor.Value;
             }
 
-            // 2️⃣ Intentar usar el recurso SystemAccentColor
+            // Intentar usar el recurso SystemAccentColor
             if (Application.Current?.TryGetResource("SystemAccentColor", null, out var value) == true && value is Color accent)
             {
                 Console.WriteLine($"[GetSystemAccentColor] Usando color de sistema: {accent}");

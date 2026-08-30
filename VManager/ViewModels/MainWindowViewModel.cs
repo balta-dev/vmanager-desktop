@@ -44,8 +44,8 @@ public class MainWindowViewModel : ViewModelBase
     private Herramienta4ViewModel? _herramienta4;
     private Herramienta5ViewModel? _herramienta5;
     private Herramienta6ViewModel? _herramienta6;
-    public ConfigurationViewModel _configuration;
-    private AcercaDeViewModel _acercaDe;
+    private ConfigurationViewModel? _configuration;
+    private AcercaDeViewModel? _acercaDe;
 
     private Herramienta1ViewModel Herramienta1 => _herramienta1 ??= new Herramienta1ViewModel();
     private Herramienta2ViewModel Herramienta2 => _herramienta2 ??= new Herramienta2ViewModel();
@@ -53,6 +53,7 @@ public class MainWindowViewModel : ViewModelBase
     private Herramienta4ViewModel Herramienta4 => _herramienta4 ??= new Herramienta4ViewModel();
     private Herramienta5ViewModel Herramienta5 => _herramienta5 ??= new Herramienta5ViewModel();
     private Herramienta6ViewModel Herramienta6 => _herramienta6 ??= new Herramienta6ViewModel();
+    private AcercaDeViewModel AcercaDe => _acercaDe ??= new AcercaDeViewModel();
 
     public List<ViewModelBase> Tools =>
         new ViewModelBase?[] { _herramienta1, _herramienta2, _herramienta3, _herramienta4, _herramienta5, _herramienta6 }
@@ -164,21 +165,58 @@ public class MainWindowViewModel : ViewModelBase
     public string VersionText { get; } =
         $"{Assembly.GetEntryAssembly()?.GetName().Version?.ToString(3)}";
 
+    public ConfigurationViewModel Configuration => _configuration ??= CreateConfigurationViewModel();
+
+    private bool _configurationSubscriptionsInitialized;
+
+    private ConfigurationViewModel CreateConfigurationViewModel()
+    {
+        var vm = new ConfigurationViewModel();
+        EnsureConfigurationSubscriptions(vm);
+        return vm;
+    }
+
+    private void EnsureConfigurationSubscriptions(ConfigurationViewModel config)
+    {
+        if (_configurationSubscriptionsInitialized)
+            return;
+
+        _configurationSubscriptionsInitialized = true;
+
+        config.WhenAnyValue(x => x.UseCustomIcon)
+            .Subscribe(useCustom =>
+            {
+                ShowCustomIcon = useCustom;
+                LoadProfileImage();
+            });
+
+        config.WhenAnyValue(x => x.ProfileImagePath)
+            .Subscribe(_ => LoadProfileImage());
+
+        config.WhenAnyValue(x => x.HidePane)
+            .Subscribe(value => HidePane = value);
+
+        config.WhenAnyValue(x => x.ShowThemeToggleButton)
+            .Subscribe(value => ShowThemeToggleButton = value);
+    }
+
     public MainWindowViewModel()
     {
         ToggleThemeCommand = ReactiveCommand.Create(ToggleTheme, outputScheduler: AvaloniaScheduler.Instance);
         OpenGitHubCommand = ReactiveCommand.Create(OpenGitHub, outputScheduler: AvaloniaScheduler.Instance);
-        
-        // _configuration y _acercaDe se siguen creando al inicio porque
-        // se necesitan para suscripciones y sincronización de config
-        _configuration = new ConfigurationViewModel();
-        _acercaDe = new AcercaDeViewModel();
+
+        var appConfig = ConfigurationService.Current;
+        ConfigurationViewModel.ApplySavedLanguage(appConfig.Language);
+        HidePane = appConfig.HidePane;
+        ShowThemeToggleButton = appConfig.ShowThemeToggleButton;
+        ShowCustomIcon = appConfig.UseCustomIcon;
         
         MessageBus.Current.Listen<NavigateToConfigAndScrollMessage>()
             .Subscribe(_ =>
             {
-                CurrentView = _configuration;
-                _configuration.RequestScrollToBottom?.Invoke();
+                var config = Configuration;
+                CurrentView = config;
+                config.RequestScrollToBottom?.Invoke();
             });
         
         // Las 5 herramientas ya NO se crean acá, se crean lazy al primer uso
@@ -296,7 +334,7 @@ public class MainWindowViewModel : ViewModelBase
                 Herramienta6Activa = false;
                 ConfiguracionActiva = true;
                 AcercaDeActivo = false;
-                CurrentView = _configuration;
+                CurrentView = Configuration;
                 return Unit.Default;
             },
             outputScheduler: AvaloniaScheduler.Instance
@@ -313,7 +351,7 @@ public class MainWindowViewModel : ViewModelBase
                 Herramienta5Activa = false;
                 Herramienta6Activa = false;
                 ConfiguracionActiva = false;
-                CurrentView = _acercaDe;
+                CurrentView = AcercaDe;
                 return Unit.Default;
             },
             outputScheduler: AvaloniaScheduler.Instance
@@ -328,23 +366,8 @@ public class MainWindowViewModel : ViewModelBase
                 IsDarkTheme = theme == ThemeVariant.Dark;
             });
         
-        LoadProfileImage();
-        
-        _configuration.WhenAnyValue(x => x.UseCustomIcon)
-            .Subscribe(useCustom => 
-            {
-                ShowCustomIcon = useCustom;
-                LoadProfileImage();
-            });
-        
-        _configuration.WhenAnyValue(x => x.ProfileImagePath)
-            .Subscribe(_ => LoadProfileImage());
-        
-        _configuration.WhenAnyValue(x => x.HidePane)
-            .Subscribe(value => HidePane = value);
-        
-        _configuration.WhenAnyValue(x => x.ShowThemeToggleButton)
-            .Subscribe(value => ShowThemeToggleButton  = value);
+        if (appConfig.UseCustomIcon)
+            Avalonia.Threading.Dispatcher.UIThread.Post(LoadProfileImage, Avalonia.Threading.DispatcherPriority.Background);
         
         // Aplicar herramienta solicitada por línea de comandos
         ApplyStartupTool();
@@ -384,8 +407,6 @@ public class MainWindowViewModel : ViewModelBase
         }
     }
     
-    public ConfigurationViewModel Configuration => _configuration; 
-    
     public void LoadProfileImage()
     {
         var config = ConfigurationService.Current;
@@ -398,23 +419,28 @@ public class MainWindowViewModel : ViewModelBase
             {
                 try
                 {
+                    var previous = UserImage;
                     UserImage = new Bitmap(imagePath);
+                    previous?.Dispose();
                     ShowCustomIcon = true;
                 }
                 catch
                 {
+                    UserImage?.Dispose();
                     UserImage = null;
                     ShowCustomIcon = false;
                 }
             }
             else
             {
+                UserImage?.Dispose();
                 UserImage = null;
                 ShowCustomIcon = false;
             }
         }
         else
         {
+            UserImage?.Dispose();
             UserImage = null;
             ShowCustomIcon = false;
         }
@@ -435,7 +461,7 @@ public class MainWindowViewModel : ViewModelBase
         bool isDark = app.RequestedThemeVariant == ThemeVariant.Dark;
         ConfigurationService.Current.UseDarkTheme = isDark;
         ConfigurationService.Save(ConfigurationService.Current);
-        _configuration.UseDarkTheme = isDark;
+        Configuration.UseDarkTheme = isDark;
     }
     
     private void OpenGitHub()
