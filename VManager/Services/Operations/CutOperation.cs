@@ -27,7 +27,8 @@ namespace VManager.Services.Operations
             TimeSpan start,
             TimeSpan duration,
             IProgress<IFFmpegProcessor.ProgressInfo> progress,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            PauseToken pauseToken = default)
         {
             inputPath = OutputPathBuilder.SanitizeFilename(inputPath);
             outputPath = OutputPathBuilder.SanitizeFilename(outputPath);
@@ -68,7 +69,8 @@ namespace VManager.Services.Operations
                 args,
                 duration.TotalSeconds,
                 progress,
-                cancellationToken
+                cancellationToken,
+                pauseToken
             );
 
             if (result.Success && !string.IsNullOrEmpty(warningMessage))

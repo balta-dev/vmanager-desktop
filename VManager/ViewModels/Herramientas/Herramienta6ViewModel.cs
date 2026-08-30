@@ -171,7 +171,6 @@ namespace VManager.ViewModels.Herramientas
                 return;
             }
 
-            // Validar velocidad
             if (!double.TryParse(Speed.Replace(',', '.'),
                     System.Globalization.NumberStyles.Any,
                     System.Globalization.CultureInfo.InvariantCulture,
@@ -181,7 +180,6 @@ namespace VManager.ViewModels.Herramientas
                 return;
             }
 
-            // Validar FPS (solo si no está bloqueado y hay algo escrito)
             double? fpsValue = null;
             if (!FpsLocked && !string.IsNullOrWhiteSpace(TargetFps))
             {
@@ -195,6 +193,8 @@ namespace VManager.ViewModels.Herramientas
                 }
                 fpsValue = parsedFps;
             }
+
+            using var effectivePause = CreateEffectivePauseToken();
 
             try
             {
@@ -236,7 +236,8 @@ namespace VManager.ViewModels.Herramientas
                         speedValue,
                         isAudio,
                         progress,
-                        _cts.Token);
+                        _cts.Token,
+                        effectivePause.Token);
 
                     if (!result.Success)
                     {

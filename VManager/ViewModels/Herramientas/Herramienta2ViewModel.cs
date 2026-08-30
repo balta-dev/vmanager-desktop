@@ -210,6 +210,8 @@ namespace VManager.ViewModels.Herramientas
                 return;
             }
 
+            using var effectivePause = CreateEffectivePauseToken();
+
             try
             {
                 IFFmpegProcessor processor = new FFmpegProcessor();
@@ -248,7 +250,8 @@ namespace VManager.ViewModels.Herramientas
                         SelectedVideoCodec,
                         SelectedAudioCodec,
                         progress,
-                        _cts.Token
+                        _cts.Token,
+                        effectivePause.Token
                     );
 
                     if (!result.Success)

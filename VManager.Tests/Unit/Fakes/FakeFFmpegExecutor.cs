@@ -15,7 +15,8 @@ namespace VManager.Tests.Unit.Fakes
             FFMpegArgumentProcessor args,
             double duration,
             IProgress<IFFmpegProcessor.ProgressInfo> progress,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            PauseToken pauseToken = default)
         {
             return Task.FromResult(
                 new ProcessingResult(true, "ok", outputPath)

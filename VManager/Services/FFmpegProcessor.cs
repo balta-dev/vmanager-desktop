@@ -6,6 +6,7 @@ using FFMpegCore;
 using VManager.Services.Models;
 using VManager.Services.Operations;
 using VManager.Services.Core.Media;
+using VManager.Services.Core.Execution;
 
 namespace VManager.Services
 {
@@ -29,16 +30,16 @@ namespace VManager.Services
         public async Task<AnalysisResult<IMediaAnalysis>> AnalyzeVideoAsync(string inputPath)
             => await new MediaAnalyzer().AnalyzeAsync(inputPath);
 
-        public async Task<ProcessingResult> CutAsync(string inputPath, string outputPath, TimeSpan start, TimeSpan duration, IProgress<IFFmpegProcessor.ProgressInfo> progress, CancellationToken ct = default)
-            => await _cut.ExecuteAsync(inputPath, outputPath, start, duration, progress, ct);
+        public async Task<ProcessingResult> CutAsync(string inputPath, string outputPath, TimeSpan start, TimeSpan duration, IProgress<IFFmpegProcessor.ProgressInfo> progress, CancellationToken ct = default, PauseToken pauseToken = default)
+            => await _cut.ExecuteAsync(inputPath, outputPath, start, duration, progress, ct, pauseToken);
 
-        public async Task<ProcessingResult> CompressAsync(string inputPath, string outputPath, int compressionPercentage, string? videoCodec, string? audioCodec, IProgress<IFFmpegProcessor.ProgressInfo> progress, CancellationToken ct = default)
-            => await _compress.ExecuteAsync(inputPath, outputPath, compressionPercentage, videoCodec, audioCodec, progress, ct);
+        public async Task<ProcessingResult> CompressAsync(string inputPath, string outputPath, int compressionPercentage, string? videoCodec, string? audioCodec, IProgress<IFFmpegProcessor.ProgressInfo> progress, CancellationToken ct = default, PauseToken pauseToken = default)
+            => await _compress.ExecuteAsync(inputPath, outputPath, compressionPercentage, videoCodec, audioCodec, progress, ct, pauseToken);
 
-        public async Task<ProcessingResult> ConvertAsync(string inputPath, string outputPath, string? videoCodec, string? audioCodec, string selectedFormat, IProgress<IFFmpegProcessor.ProgressInfo> progress, CancellationToken ct = default)
-            => await _convert.ExecuteAsync(inputPath, outputPath, videoCodec, audioCodec, selectedFormat, progress, ct);
+        public async Task<ProcessingResult> ConvertAsync(string inputPath, string outputPath, string? videoCodec, string? audioCodec, string selectedFormat, IProgress<IFFmpegProcessor.ProgressInfo> progress, CancellationToken ct = default, PauseToken pauseToken = default)
+            => await _convert.ExecuteAsync(inputPath, outputPath, videoCodec, audioCodec, selectedFormat, progress, ct, pauseToken);
 
-        public async Task<ProcessingResult> AudiofyAsync(string inputPath, string outputPath, string? videoCodec, string? audioCodec, string selectedAudioFormat, IProgress<IFFmpegProcessor.ProgressInfo> progress, CancellationToken ct = default)
-            => await _audioExtract.ExecuteAsync(inputPath, outputPath, videoCodec, audioCodec, selectedAudioFormat, progress, ct);
+        public async Task<ProcessingResult> AudiofyAsync(string inputPath, string outputPath, string? videoCodec, string? audioCodec, string selectedAudioFormat, IProgress<IFFmpegProcessor.ProgressInfo> progress, CancellationToken ct = default, PauseToken pauseToken = default)
+            => await _audioExtract.ExecuteAsync(inputPath, outputPath, videoCodec, audioCodec, selectedAudioFormat, progress, ct, pauseToken);
     }
 }

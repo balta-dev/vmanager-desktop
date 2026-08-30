@@ -50,6 +50,8 @@ namespace VManager.ViewModels.Herramientas
                 return;
             }
 
+            using var effectivePause = CreateEffectivePauseToken();
+
             try
             {
                 IFFmpegProcessor processor = new FFmpegProcessor();
@@ -68,14 +70,11 @@ namespace VManager.ViewModels.Herramientas
                     
                     var progress = new Progress<IFFmpegProcessor.ProgressInfo>(p =>
                     {
-                        // Calculamos progreso global si tenés múltiples archivos
                         double globalProgress = ((currentFileIndex - 1) + p.Progress) / totalFiles;
                         Progress = (int)(globalProgress * 100);
 
-                        // Aseguramos que Remaining nunca sea negativo
                         var remaining = p.Remaining.TotalSeconds < 0 ? TimeSpan.Zero : p.Remaining;
 
-                        // Formateamos según duración
                         RemainingTime = remaining.TotalHours >= 1
                             ? remaining.ToString(@"hh\:mm\:ss")
                             : remaining.ToString(@"mm\:ss");
@@ -104,7 +103,8 @@ namespace VManager.ViewModels.Herramientas
                         SelectedAudioFormat?.Codec!,
                         SelectedAudioFormat?.Extension!,
                         progress,
-                        _cts.Token
+                        _cts.Token,
+                        effectivePause.Token
                     );
 
                     if (result.Success)

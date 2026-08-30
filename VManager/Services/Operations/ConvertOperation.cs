@@ -42,7 +42,8 @@ namespace VManager.Services.Operations
             string? audioCodec,
             string selectedFormat,
             IProgress<IFFmpegProcessor.ProgressInfo> progress,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            PauseToken pauseToken = default)
         {
             inputPath = OutputPathBuilder.SanitizeFilename(inputPath);
             outputPath = OutputPathBuilder.SanitizeFilename(outputPath);
@@ -82,16 +83,21 @@ namespace VManager.Services.Operations
                     {
                         options
                             .WithCustomArgument("-map 0")
-                            .WithVideoCodec(selectedVideoCodec)
-                            .WithAudioCodec(selectedAudioCodec);
+                            .WithVideoCodec(selectedVideoCodec);
 
-                        ApplySpecialCodecOptions(options, selectedVideoCodec);
+                        if (mediaInfo.PrimaryAudioStream != null)
+                        {
+                            options.WithAudioCodec(selectedAudioCodec);
+                        }
+
+                        ApplySpecialCodecOptions(options, selectedVideoCodec, mediaInfo.PrimaryAudioStream != null);
 
                         return options;
                     },
                     duration,
                     progress,
-                    cancellationToken
+                    cancellationToken,
+                    pauseToken
                 );
             }
 
@@ -101,15 +107,20 @@ namespace VManager.Services.Operations
                 .OutputToFile(outputPath, overwrite: true, options =>
                 {
                     options.WithCustomArgument("-map 0:v");
-                    options.WithCustomArgument("-map 0:a");
+                    if (mediaInfo.PrimaryAudioStream != null)
+                    {
+                        options.WithCustomArgument("-map 0:a");
+                    }
                     
                     if (needsReencoding)
                     {
-                        options
-                            .WithVideoCodec(selectedVideoCodec)
-                            .WithAudioCodec(selectedAudioCodec);
+                        options.WithVideoCodec(selectedVideoCodec);
+                        if (mediaInfo.PrimaryAudioStream != null)
+                        {
+                            options.WithAudioCodec(selectedAudioCodec);
+                        }
 
-                        ApplySpecialCodecOptions(options, selectedVideoCodec);
+                        ApplySpecialCodecOptions(options, selectedVideoCodec, mediaInfo.PrimaryAudioStream != null);
                     }
                     else
                     {
@@ -124,7 +135,8 @@ namespace VManager.Services.Operations
                 args,
                 duration,
                 progress,
-                cancellationToken
+                cancellationToken,
+                pauseToken
             );
         }
 
@@ -134,12 +146,12 @@ namespace VManager.Services.Operations
             var videoStream = mediaInfo.PrimaryVideoStream;
             var audioStream = mediaInfo.PrimaryAudioStream;
 
-            if (videoStream == null || audioStream == null)
-                return true; // Sin streams, recodificar por seguridad
+            if (videoStream == null)
+                return true; // Sin video, recodificar por seguridad
 
             // Normalizar nombres de códecs
             string currentVideoCodec = videoStream.CodecName?.ToLower() ?? "";
-            string currentAudioCodec = audioStream.CodecName?.ToLower() ?? "";
+            string currentAudioCodec = audioStream?.CodecName?.ToLower() ?? "";
             string targetVideo = targetVideoCodec.ToLower();
             string targetAudio = targetAudioCodec.ToLower();
 
@@ -150,7 +162,7 @@ namespace VManager.Services.Operations
                 (currentVideoCodec == "hevc" && targetVideo == "libx265") ||
                 (currentVideoCodec == "vp9" && targetVideo == "libvpx-vp9");
 
-            bool audioMatches = 
+            bool audioMatches = audioStream == null || 
                 (currentAudioCodec == targetAudio) ||
                 (currentAudioCodec == "aac" && targetAudio == "aac");
 
@@ -159,7 +171,7 @@ namespace VManager.Services.Operations
         }
 
         // Método privado para evitar duplicación de lógica DNxHR
-        private static void ApplySpecialCodecOptions(FFMpegArgumentOptions options, string videoCodec)
+        private static void ApplySpecialCodecOptions(FFMpegArgumentOptions options, string videoCodec, bool hasAudio)
         {
             if (HardwareAccelerationConfigurator.IsDNxHRCodec(videoCodec))
             {
@@ -169,7 +181,10 @@ namespace VManager.Services.Operations
             }
             else
             {
-                options.WithAudioBitrate(128);
+                if (hasAudio)
+                {
+                    options.WithAudioBitrate(128);
+                }
                 HardwareAccelerationConfigurator.Configure(options, videoCodec);
             }
         }

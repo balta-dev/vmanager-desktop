@@ -75,6 +75,9 @@ namespace VManager.Tests.Unit
         [Fact]
         public async Task ExecuteAsync_LongVideo_UsesResumableExecutor()
         {
+            var originalResumable = ConfigurationService.Current.EnableExperimentalResumable;
+            ConfigurationService.Current.EnableExperimentalResumable = true;
+
             // Archivo temporal
             var inputFile = Path.GetTempFileName();
             await File.WriteAllTextAsync(inputFile, "dummy content");
@@ -97,6 +100,7 @@ namespace VManager.Tests.Unit
                         It.IsAny<double>(),
                         It.IsAny<IProgress<IFFmpegProcessor.ProgressInfo>>(),
                         It.IsAny<CancellationToken>(),
+                        It.IsAny<PauseToken>(),
                         It.IsAny<string>()
                     ))
                     .ReturnsAsync(new ProcessingResult(true, "Mock resumable OK", outputFile));
@@ -120,11 +124,69 @@ namespace VManager.Tests.Unit
                     It.Is<double>(d => d == 600),
                     It.IsAny<IProgress<IFFmpegProcessor.ProgressInfo>>(),
                     It.IsAny<CancellationToken>(),
+                    It.IsAny<PauseToken>(),
                     It.IsAny<string>()
                 ), Times.Once);
             }
             finally
             {
+                ConfigurationService.Current.EnableExperimentalResumable = originalResumable;
+                File.Delete(inputFile);
+                if (File.Exists(outputFile)) File.Delete(outputFile);
+            }
+        }
+
+        [Fact]
+        public async Task ExecuteAsync_LongVideo_ForwardsPauseTokenToResumableExecutor()
+        {
+            var originalResumable = ConfigurationService.Current.EnableExperimentalResumable;
+            ConfigurationService.Current.EnableExperimentalResumable = true;
+
+            var inputFile = Path.GetTempFileName();
+            await File.WriteAllTextAsync(inputFile, "dummy content");
+            var outputFile = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".mp4");
+            var pauseSource = new PauseTokenSource();
+            PauseToken capturedToken = default;
+
+            try
+            {
+                var mockMediaInfo = new Mock<IMediaAnalysis>();
+                mockMediaInfo.Setup(m => m.Duration).Returns(TimeSpan.FromSeconds(600));
+
+                var mockAnalyzer = new Mock<IMediaAnalyzer>();
+                mockAnalyzer.Setup(a => a.AnalyzeAsync(It.IsAny<string>()))
+                    .ReturnsAsync(new AnalysisResult<IMediaAnalysis>(true, "", mockMediaInfo.Object));
+
+                var mockResumable = new Mock<ResumableFFmpegExecutor>(FFmpegManager.FfmpegPath);
+                mockResumable.Setup(r => r.ExecuteResumableAsync(
+                        It.IsAny<string>(),
+                        It.IsAny<string>(),
+                        It.IsAny<Func<FFMpegArgumentOptions, FFMpegArgumentOptions>>(),
+                        It.IsAny<double>(),
+                        It.IsAny<IProgress<IFFmpegProcessor.ProgressInfo>>(),
+                        It.IsAny<CancellationToken>(),
+                        It.IsAny<PauseToken>(),
+                        It.IsAny<string>()
+                    ))
+                    .Callback<string, string, Func<FFMpegArgumentOptions, FFMpegArgumentOptions>, double,
+                        IProgress<IFFmpegProcessor.ProgressInfo>, CancellationToken, PauseToken, string?>(
+                        (_, _, _, _, _, _, pt, _) => capturedToken = pt)
+                    .ReturnsAsync(new ProcessingResult(true, "Mock resumable OK", outputFile));
+
+                var operation = new CompressOperation(FFmpegManager.FfmpegPath, mockAnalyzer.Object);
+                typeof(CompressOperation)
+                    .GetField("_resumableExecutor", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                    .SetValue(operation, mockResumable.Object);
+
+                await operation.ExecuteAsync(inputFile, outputFile, 50, null, null, null!, pauseToken: pauseSource.Token);
+
+                capturedToken.IsPaused.Should().BeFalse();
+                pauseSource.Pause();
+                capturedToken.IsPaused.Should().BeTrue();
+            }
+            finally
+            {
+                ConfigurationService.Current.EnableExperimentalResumable = originalResumable;
                 File.Delete(inputFile);
                 if (File.Exists(outputFile)) File.Delete(outputFile);
             }

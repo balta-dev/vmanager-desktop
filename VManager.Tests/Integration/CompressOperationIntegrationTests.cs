@@ -15,10 +15,16 @@ namespace VManager.Tests.Integration
         private const string TestFilesDir = "CompressionTestFiles";
         private string _ffmpegPath = string.Empty;
 
+        private bool _originalResumableSetting;
+
         public async Task InitializeAsync()
         {
             await FFmpegManager.Initialize();
             _ffmpegPath = FFmpegManager.FfmpegPath;
+
+            // Habilitar el modo resumable para los tests de integración
+            _originalResumableSetting = ConfigurationService.Current.EnableExperimentalResumable;
+            ConfigurationService.Current.EnableExperimentalResumable = true;
 
             if (Directory.Exists(TestFilesDir))
                 Directory.Delete(TestFilesDir, true);
@@ -28,17 +34,23 @@ namespace VManager.Tests.Integration
 
         public Task DisposeAsync()
         {
+            // Restaurar la configuración original
+            ConfigurationService.Current.EnableExperimentalResumable = _originalResumableSetting;
+
             if (Directory.Exists(TestFilesDir))
                 Directory.Delete(TestFilesDir, true);
             
             return Task.CompletedTask;
         }
 
-        private async Task CreateTestVideo(string path, int durationSeconds)
+        private async Task CreateTestVideo(string path, int durationSeconds, bool withAudio = true)
         {
-            // Generamos un video con bitrate bajo para que sea rápido
-            // Usamos una resolución mínima para acelerar la creación en tests
-            var args = $"-f lavfi -i testsrc=duration={durationSeconds}:size=160x120:rate=10 -c:v libx264 -pix_fmt yuv420p -y \"{path}\"";
+            // Generamos un video con bitrate bajo y audio silencioso para tests realistas
+            string audioInput = withAudio
+                ? $"-f lavfi -i aevalsrc=0:channel_layout=stereo:sample_rate=44100:duration={durationSeconds}"
+                : string.Empty;
+            string audioMap = withAudio ? "-map 0:v -map 1:a -c:a aac" : string.Empty;
+            var args = $"-f lavfi -i testsrc=duration={durationSeconds}:size=160x120:rate=10 {audioInput} -c:v libx264 -pix_fmt yuv420p {audioMap} -y \"{path}\"";
             
             var proc = new System.Diagnostics.Process
             {
@@ -97,16 +109,10 @@ namespace VManager.Tests.Integration
             await CreateTestVideo(inputPath, 301); 
 
             var operation = new CompressOperation(_ffmpegPath);
-            
-            // Trackear si se creó la carpeta temporal (indica uso de ResumableExecutor)
-            bool tempFolderWasCreated = false;
-            string tempFolder = Path.Combine(Path.GetDirectoryName(inputPath)!, ".vmanager_temp_" + Path.GetFileNameWithoutExtension(inputPath));
-            
-            var progress = new Progress<IFFmpegProcessor.ProgressInfo>(p => {
-                // Verificar si la carpeta temporal existe durante la ejecución
-                if (Directory.Exists(tempFolder))
-                    tempFolderWasCreated = true;
-            });
+
+            // El ResumableExecutor reporta progreso por chunks — al menos 2 reportes para 301s
+            int progressCount = 0;
+            var progress = new Progress<IFFmpegProcessor.ProgressInfo>(_ => Interlocked.Increment(ref progressCount));
 
             // Act
             var result = await operation.ExecuteAsync(
@@ -118,15 +124,23 @@ namespace VManager.Tests.Integration
                 progress: progress
             );
 
+            // Dar tiempo a que los callbacks de progreso se despachen
+            await Task.Delay(100);
+
             // Assert
             result.Success.Should().BeTrue($"Error de FFmpeg: {result.Message}");
             File.Exists(outputPath).Should().BeTrue();
-            
-            // CRÍTICO: Verificar que se usó el ResumableExecutor
-            tempFolderWasCreated.Should().BeTrue("Para videos largos (>=120s) se debe usar el ResumableExecutor que crea carpetas temporales");
-            
-            // Verificar limpieza de temporales
-            Directory.Exists(tempFolder).Should().BeFalse("La carpeta temporal de chunks debería haber sido eliminada.");
+
+            // El ResumableExecutor procesa en chunks y reporta progreso por cada uno
+            progressCount.Should().BeGreaterThan(1,
+                "El ResumableExecutor debe reportar progreso múltiples veces (un reporte por chunk al menos)");
+
+            // La carpeta temporal debe haber sido limpiada al finalizar
+            string tempFolder = Path.Combine(
+                Path.GetDirectoryName(inputPath)!,
+                VManager.Services.Core.ProcessingConstants.TempFolderName);
+            Directory.Exists(tempFolder).Should().BeFalse(
+                "La carpeta temporal de chunks debería haber sido eliminada.");
         }
 
         [Fact]

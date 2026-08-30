@@ -22,7 +22,8 @@ internal class FFmpegExecutor : IFFmpegExecutor
         FFMpegArgumentProcessor args,
         double duration,
         IProgress<IFFmpegProcessor.ProgressInfo> progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        PauseToken pauseToken = default)
     {
         var process = new Process
         {
@@ -36,15 +37,24 @@ internal class FFmpegExecutor : IFFmpegExecutor
                 CreateNoWindow = true
             }
         };
+        
+        void OnPauseChanged(bool paused)
+        {
+            if (process.HasExited) return;
+            if (paused) ProcessSuspender.Suspend(process.Id);
+            else ProcessSuspender.Resume(process.Id);
+        }
 
         try
         {
+            pauseToken.PauseChanged += OnPauseChanged;
             using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
                 cts.Token.Register(() =>
                 {
                     if (!process.HasExited)
                     {
+                        if (pauseToken.IsPaused) ProcessSuspender.Resume(process.Id); // por si estaba suspendido
                         process.Kill();
                         Console.WriteLine("[DEBUG]: Proceso FFmpeg terminado por cancelación.");
                         if (File.Exists(outputPath))
@@ -63,10 +73,14 @@ internal class FFmpegExecutor : IFFmpegExecutor
                 });
 
                 process.Start();
+                
+                // si ya arrancó pausado (edge case: overlay ya estaba activo)
+                if (pauseToken.IsPaused)
+                    OnPauseChanged(true);
 
                 // ✅ Capturar TODA la salida de error mientras leemos línea por línea
                 var errorOutputBuilder = new StringBuilder();
-                
+
                 using (var reader = process.StandardError)
                 {
                     string? line;
@@ -74,7 +88,7 @@ internal class FFmpegExecutor : IFFmpegExecutor
                     {
                         // Guardar todas las líneas para diagnóstico
                         errorOutputBuilder.AppendLine(line);
-                        
+
                         if (line.Contains("time="))
                         {
                             var timeMatch = Regex.Match(line, @"time=(\d{2}:\d{2}:\d{2}\.\d{2})");
@@ -89,15 +103,17 @@ internal class FFmpegExecutor : IFFmpegExecutor
                                 double remainingVideo = duration - processed;
 
                                 // velocidad de procesamiento (1.0x = tiempo real)
-                                double speed = speedMatch.Success 
-                                    ? double.Parse(speedMatch.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) 
+                                double speed = speedMatch.Success
+                                    ? double.Parse(speedMatch.Groups[1].Value,
+                                        System.Globalization.CultureInfo.InvariantCulture)
                                     : 1.0;
 
                                 // tiempo real estimado restante (ajustado por velocidad)
                                 TimeSpan remainingReal = TimeSpan.FromSeconds(remainingVideo / speed);
 
                                 // debug opcional
-                                Console.WriteLine($"[DEBUG] Progreso: {progressValue:P2}, Restante real: {remainingReal}");
+                                Console.WriteLine(
+                                    $"[DEBUG] Progreso: {progressValue:P2}, Restante real: {remainingReal}");
 
                                 // reportamos progreso usando tu ProgressInfo
                                 progress?.Report(new IFFmpegProcessor.ProgressInfo(progressValue, remainingReal));
@@ -117,7 +133,7 @@ internal class FFmpegExecutor : IFFmpegExecutor
 
                 // ✅ Ahora usar el string capturado, no leer del stream cerrado
                 string errorOutput = errorOutputBuilder.ToString();
-                
+
                 if (process.ExitCode != 0)
                 {
                     if (errorOutput.Contains("No such file or directory") ||
@@ -127,7 +143,7 @@ internal class FFmpegExecutor : IFFmpegExecutor
                     {
                         throw new Exception($"FFmpeg error: {errorOutput} (ExitCode: {process.ExitCode})");
                     }
-                    
+
                     // Si hubo error pero no es crítico, también reportarlo
                     return new ProcessingResult(false, $"FFmpeg falló con código {process.ExitCode}: {errorOutput}");
                 }
@@ -153,6 +169,10 @@ internal class FFmpegExecutor : IFFmpegExecutor
             Console.WriteLine($"[DEBUG]: Error: {ex.Message}");
             ErrorService.Show(ex);
             return new ProcessingResult(false, $"Error: {ex.Message}");
+        }
+        finally
+        {
+            pauseToken.PauseChanged -= OnPauseChanged; // evitar leak del delegate
         }
     }
 }

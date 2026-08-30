@@ -13,6 +13,7 @@ using Avalonia.Styling;
 using VManager.ViewModels;
 using VManager.Views;
 using VManager.Services;
+using VManager.Services.Core.Execution;
 using VManager.Splash;
 
 namespace VManager;
@@ -38,6 +39,10 @@ public partial class App : Application
                 // Trabajo pesado fuera del hilo UI
                 ExtractThemes();
                 Console.WriteLine($"[STARTUP] [{MainWindow.StartupStopwatch?.ElapsedMilliseconds}ms] ExtractThemes ejecutado");
+                
+                // Inicializar el servicio de pausa global temprano y de forma predecible
+                _ = GlobalPauseService.Instance;
+                Console.WriteLine($"[STARTUP] [{MainWindow.StartupStopwatch?.ElapsedMilliseconds}ms] GlobalPauseService inicializado");
                 
                 var config = ConfigurationService.Current;
                 Console.WriteLine($"[STARTUP] [{MainWindow.StartupStopwatch?.ElapsedMilliseconds}ms] Config cargada");

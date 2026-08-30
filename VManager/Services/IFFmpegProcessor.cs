@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using FFMpegCore;
 using VManager.Services.Models;
+using VManager.Services.Core.Execution;
 
 namespace VManager.Services
 {
@@ -18,7 +19,8 @@ namespace VManager.Services
             TimeSpan start, 
             TimeSpan duration,
             IProgress<ProgressInfo> progress, 
-            CancellationToken ct = default);
+            CancellationToken ct = default,
+            PauseToken pauseToken = default);
 
         Task<ProcessingResult> CompressAsync(
             string inputPath,
@@ -27,7 +29,8 @@ namespace VManager.Services
             string videoCodec,
             string audioCodec,
             IProgress<ProgressInfo> progress,
-            CancellationToken ct = default);
+            CancellationToken ct = default,
+            PauseToken pauseToken = default);
 
         Task<ProcessingResult> ConvertAsync(
             string inputPath,
@@ -36,7 +39,8 @@ namespace VManager.Services
             string? audioCodec,
             string selectedFormat,
             IProgress<ProgressInfo> progress,
-            CancellationToken ct = default);
+            CancellationToken ct = default,
+            PauseToken pauseToken = default);
 
         Task<ProcessingResult> AudiofyAsync(
             string inputPath,
@@ -45,7 +49,7 @@ namespace VManager.Services
             string? audioCodec,
             string selectedAudioFormat,
             IProgress<ProgressInfo> progress, 
-            CancellationToken ct = default);
+            CancellationToken ct = default,
+            PauseToken pauseToken = default);
     }
-  
 }

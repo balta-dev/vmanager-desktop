@@ -15,6 +15,7 @@ namespace VManager.Services.Core.Execution
             double duration,
             IProgress<IFFmpegProcessor.ProgressInfo> progress,
             CancellationToken cancellationToken,
+            PauseToken pauseToken = default,
             string? operationName = null);
     }
 }

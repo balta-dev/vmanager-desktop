@@ -43,7 +43,8 @@ namespace VManager.Services.Operations
             string? videoCodec,
             string? audioCodec,
             IProgress<IFFmpegProcessor.ProgressInfo> progress,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            PauseToken pauseToken = default)
         {
             inputPath = OutputPathBuilder.SanitizeFilename(inputPath);
             outputPath = OutputPathBuilder.SanitizeFilename(outputPath);
@@ -79,15 +80,22 @@ namespace VManager.Services.Operations
                            options
                                .WithCustomArgument("-map 0")
                                .WithVideoCodec(selectedVideoCodec)
-                               .WithVideoBitrate(targetBitrate)
-                               .WithAudioCodec(selectedAudioCodec)
-                               .WithAudioBitrate(128);
+                               .WithVideoBitrate(targetBitrate);
+
+                           if (mediaInfo.PrimaryAudioStream != null)
+                           {
+                               options
+                                   .WithAudioCodec(selectedAudioCodec)
+                                   .WithAudioBitrate(128);
+                           }
+
                            HardwareAccelerationConfigurator.Configure(options, selectedVideoCodec);
                            return options;
                        },
                        duration,
                        progress,
-                       cancellationToken
+                       cancellationToken,
+                       pauseToken
                 );
             }
 
@@ -96,17 +104,27 @@ namespace VManager.Services.Operations
                 .FromFileInput(inputPath)
                 .OutputToFile(outputPath, overwrite: true, options =>
                 {
+                    options.WithCustomArgument("-map 0:v");
+                    if (mediaInfo.PrimaryAudioStream != null)
+                    {
+                        options.WithCustomArgument("-map 0:a");
+                    }
+
                     options
-                        .WithCustomArgument("-map 0:v")
-                        .WithCustomArgument("-map 0:a")
                         .WithVideoCodec(selectedVideoCodec)
-                        .WithVideoBitrate(targetBitrate)
-                        .WithAudioCodec(selectedAudioCodec)
-                        .WithAudioBitrate(128);
+                        .WithVideoBitrate(targetBitrate);
+
+                    if (mediaInfo.PrimaryAudioStream != null)
+                    {
+                        options
+                            .WithAudioCodec(selectedAudioCodec)
+                            .WithAudioBitrate(128);
+                    }
+
                     HardwareAccelerationConfigurator.Configure(options, selectedVideoCodec);
                 });
 
-            return await _executor.ExecuteAsync(inputPath, outputPath, args, duration, progress, cancellationToken);
+            return await _executor.ExecuteAsync(inputPath, outputPath, args, duration, progress, cancellationToken, pauseToken);
         }
     }
 }

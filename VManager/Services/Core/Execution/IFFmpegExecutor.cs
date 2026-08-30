@@ -14,6 +14,7 @@ namespace VManager.Services.Core.Execution
             FFMpegArgumentProcessor args,
             double duration,
             IProgress<IFFmpegProcessor.ProgressInfo> progress,
-            CancellationToken cancellationToken);
+            CancellationToken cancellationToken,
+            PauseToken pauseToken = default);
     }
 }

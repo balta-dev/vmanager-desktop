@@ -21,6 +21,7 @@ using VManager.Behaviours.X11DragDrop;
 using VManager.Services;
 using VManager.Services.Core;
 using VManager.Views;
+using VManager.Services.Core.Execution;
 
 namespace VManager.ViewModels;
 
@@ -38,6 +39,23 @@ public abstract class ViewModelBase : ReactiveObject
     private bool _isOperationRunning;
     private bool _isDialogVisible;
     private string _remainingTime = "00:00";
+    
+    private readonly PauseTokenSource _toolPauseSource = new();
+
+    /// <summary>
+    /// Token de pausa específico de esta herramienta. Combinar con GlobalPauseService.Instance.Token
+    /// al invocar ExecuteAsync de la Operation correspondiente.
+    /// </summary>
+    public PauseToken ToolPauseToken => _toolPauseSource.Token;
+
+    /// <summary>
+    /// Combina el token global (afecta a todas las herramientas) con el propio de esta instancia.
+    /// Usar esto como pauseToken al llamar a CompressOperation/ConvertOperation/etc.
+    /// Debe disposearse al terminar la operación (usar 'using').
+    /// </summary>
+    protected CombinedPauseToken CreateEffectivePauseToken()
+        => new CombinedPauseToken(GlobalPauseService.Instance.Token, ToolPauseToken);
+    
     public bool IsDialogVisible
     {
         get => _isDialogVisible;
@@ -262,32 +280,51 @@ public abstract class ViewModelBase : ReactiveObject
     public async Task<bool> ShowCancelDialogInMainWindow(bool fromWindowClose = false)
     {
         MostrarOverlayEnMainWindow(); // Activa overlay
-
-        // Mostrar el diálogo
-        if (Application.Current != null) {
-            var mainWindow = (Application.Current.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
-            if (mainWindow != null)
-            {
-                var dialog = new CancelDialog { DataContext = this };
-                bool? result = await dialog.ShowDialog<bool?>(mainWindow);
         
-                if (result == true)
-                {
-                    // Cancelar la operación
-                    Console.WriteLine("Entrando al request cancel...");
-                    RequestCancelOperation();
-                }
+        // Pausar: si viene del cierre de ventana, pausamos TODO (puede haber varias
+        // herramientas corriendo simultáneamente); si es ESC dentro de esta herramienta
+        // puntual, pausamos solo su propio token.
+        if (fromWindowClose)
+            GlobalPauseService.Instance.Pause();
+        else
+            _toolPauseSource.Pause();
 
-                // Desactivar overlay al cerrar el dialog
-                if (mainWindow.DataContext is MainWindowViewModel mainVM)
-                    mainVM.IsDialogVisible = false;
+        try
+        {
+            // Mostrar el diálogo
+            if (Application.Current != null) {
+                var mainWindow = (Application.Current.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+                if (mainWindow != null)
+                {
+                    var dialog = new CancelDialog { DataContext = this };
+                    bool? result = await dialog.ShowDialog<bool?>(mainWindow);
             
-                // Retornar true solo si el usuario eligió cancelar Y viene de window close
-                return result == true && fromWindowClose;
+                    if (result == true)
+                    {
+                        // Cancelar la operación
+                        Console.WriteLine("Entrando al request cancel...");
+                        RequestCancelOperation();
+                    }
+
+                    // Desactivar overlay al cerrar el dialog
+                    if (mainWindow.DataContext is MainWindowViewModel mainVM)
+                        mainVM.IsDialogVisible = false;
+                
+                    // Retornar true solo si el usuario eligió cancelar Y viene de window close
+                    return result == true && fromWindowClose;
+                }
             }
+        
+            return false;
         }
-    
-        return false;
+        finally
+        {
+            // Siempre reanudar al cerrar el diálogo (cancelar o continuar)
+            if (fromWindowClose)
+                GlobalPauseService.Instance.Resume();
+            else
+                _toolPauseSource.Resume();
+        }
     }
     
     public async Task ShowCancelDialog()

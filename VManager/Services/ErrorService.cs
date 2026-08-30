@@ -24,6 +24,12 @@ namespace VManager.Services
             string? title = null,
             string? color = null)
         {
+            if (Avalonia.Application.Current == null || Avalonia.Application.Current.ApplicationLifetime == null)
+            {
+                Console.WriteLine($"[ErrorService Headless] {title ?? "Error"}: {message}");
+                return;
+            }
+
             if (_instance == null || _closed)
             {
                 _instance = new ErrorWindow(message, title, color);

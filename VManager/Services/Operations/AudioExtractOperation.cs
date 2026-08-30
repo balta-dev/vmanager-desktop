@@ -39,7 +39,8 @@ namespace VManager.Services.Operations
             string? audioCodec,
             string selectedAudioFormat,
             IProgress<IFFmpegProcessor.ProgressInfo> progress,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            PauseToken pauseToken = default)
         {
             inputPath = OutputPathBuilder.SanitizeFilename(inputPath);
             outputPath = OutputPathBuilder.SanitizeFilename(outputPath);
@@ -79,7 +80,8 @@ namespace VManager.Services.Operations
                     decision, 
                     duration, 
                     progress, 
-                    cancellationToken
+                    cancellationToken,
+                    pauseToken
                 );
             }
 
@@ -110,7 +112,8 @@ namespace VManager.Services.Operations
                 args,
                 duration,
                 progress,
-                cancellationToken
+                cancellationToken,
+                pauseToken
             );
 
             if (result.Success)
@@ -131,7 +134,8 @@ namespace VManager.Services.Operations
             AudioProcessingDecision decision,  // <- Sin AudioCodecHelper.
             double duration,
             IProgress<IFFmpegProcessor.ProgressInfo> progress,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            PauseToken pauseToken)
         {
             int streamCount = mediaInfo.AudioStreams.Count;
             string baseOutputPath = System.IO.Path.GetFileNameWithoutExtension(outputPath);
@@ -164,14 +168,15 @@ namespace VManager.Services.Operations
                                 .WithAudioBitrate(decision.Bitrate);
                         }
                     });
-
+                
                 var result = await _executor.ExecuteAsync(
                     inputPath,
                     streamOutputPath,
                     args,
                     duration,
                     progress,
-                    cancellationToken
+                    cancellationToken,
+                    pauseToken
                 );
 
                 if (!result.Success)

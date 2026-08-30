@@ -91,6 +91,9 @@ namespace VManager.Tests.Unit
         [Fact]
         public async Task ExecuteAsync_LongVideo_UsesResumableExecutor()
         {
+            var originalResumable = ConfigurationService.Current.EnableExperimentalResumable;
+            ConfigurationService.Current.EnableExperimentalResumable = true;
+
             // Arrange
             var inputFile = Path.GetTempFileName();
             await File.WriteAllTextAsync(inputFile, "dummy content");
@@ -119,6 +122,7 @@ namespace VManager.Tests.Unit
                         It.IsAny<double>(),
                         It.IsAny<IProgress<IFFmpegProcessor.ProgressInfo>>(),
                         It.IsAny<CancellationToken>(),
+                        It.IsAny<PauseToken>(),
                         It.IsAny<string>()
                     ))
                     .ReturnsAsync(new ProcessingResult(true, "Mock resumable OK", outputFile));
@@ -142,11 +146,13 @@ namespace VManager.Tests.Unit
                     It.Is<double>(d => d == 600),
                     It.IsAny<IProgress<IFFmpegProcessor.ProgressInfo>>(),
                     It.IsAny<CancellationToken>(),
+                    It.IsAny<PauseToken>(),
                     It.IsAny<string>()
                 ), Times.Once, "Para videos largos (>=300s) que requieren recodificación se debe usar el ResumableExecutor");
             }
             finally
             {
+                ConfigurationService.Current.EnableExperimentalResumable = originalResumable;
                 if (File.Exists(inputFile)) File.Delete(inputFile);
                 if (File.Exists(outputFile)) File.Delete(outputFile);
             }

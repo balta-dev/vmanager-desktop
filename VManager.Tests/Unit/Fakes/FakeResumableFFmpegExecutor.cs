@@ -17,6 +17,7 @@ namespace VManager.Tests.Unit.Fakes
             double duration,
             IProgress<IFFmpegProcessor.ProgressInfo> progress,
             CancellationToken cancellationToken,
+            PauseToken pauseToken = default,
             string? operationName = null)
         {
             return Task.FromResult(new ProcessingResult(true, "ok resumable", outputPath));

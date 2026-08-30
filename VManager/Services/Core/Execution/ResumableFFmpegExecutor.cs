@@ -24,6 +24,7 @@ internal class ResumableFFmpegExecutor : IResumableFFmpegExecutor
         double totalDuration,
         IProgress<IFFmpegProcessor.ProgressInfo> progress,
         CancellationToken ct,
+        PauseToken pt = default,
         string? operationName = null)
     {
         string tempFolder = ResumeManager.GetTempFolder(inputPath);
@@ -52,7 +53,7 @@ internal class ResumableFFmpegExecutor : IResumableFFmpegExecutor
                 if (!Directory.EnumerateFiles(chunkFolder, $"vmanager_chunk*{originalExtension}").Any())
                 {
                     Console.WriteLine("[DEBUG] Iniciando split de video...");
-                    var splitResult = await SplitIntoChunks(inputPath, chunkFolder, originalExtension, ct);
+                    var splitResult = await SplitIntoChunks(inputPath, chunkFolder, originalExtension, ct, pt);
                     
                     if (!splitResult.Success)
                     {
@@ -150,7 +151,7 @@ internal class ResumableFFmpegExecutor : IResumableFFmpegExecutor
                         });
 
                         var result = await new FFmpegExecutor(_ffmpegPath).ExecuteAsync(
-                            chunkInput, chunkOutput, args, ChunkDurationSeconds, adjustedProgress, ct);
+                            chunkInput, chunkOutput, args, ChunkDurationSeconds, adjustedProgress, ct, pt);
 
                         if (result.Success)
                         {
@@ -206,7 +207,7 @@ internal class ResumableFFmpegExecutor : IResumableFFmpegExecutor
             }
 
             // CONCATENACIÓN FINAL
-            var concatResult = await ConcatenateChunks(processedFolder, actualTotalChunks, outputPath, outputExtension, ct);
+            var concatResult = await ConcatenateChunks(processedFolder, actualTotalChunks, outputPath, outputExtension, ct, pt);
             
             if (concatResult.Success)
             {
@@ -249,7 +250,7 @@ internal class ResumableFFmpegExecutor : IResumableFFmpegExecutor
         }
     }
 
-    private async Task<ProcessingResult> SplitIntoChunks(string inputPath, string chunkFolder, string extension, CancellationToken ct)
+    private async Task<ProcessingResult> SplitIntoChunks(string inputPath, string chunkFolder, string extension, CancellationToken ct, PauseToken pt)
     {
         string pattern = Path.Combine(chunkFolder, $"vmanager_chunk%03d{extension}");
         
@@ -263,7 +264,7 @@ internal class ResumableFFmpegExecutor : IResumableFFmpegExecutor
                 .WithCustomArgument("-avoid_negative_ts make_zero")
                 .WithCustomArgument("-reset_timestamps 1"));
 
-        var result = await new FFmpegExecutor(_ffmpegPath).ExecuteAsync(inputPath, pattern, args, 0, null!, ct);
+        var result = await new FFmpegExecutor(_ffmpegPath).ExecuteAsync(inputPath, pattern, args, 0, null!, ct, pt);
 
         if (!result.Success && Directory.EnumerateFiles(chunkFolder).Any())
             return new ProcessingResult(true, "Split OK", pattern);
@@ -271,7 +272,7 @@ internal class ResumableFFmpegExecutor : IResumableFFmpegExecutor
         return result;
     }
 
-    private async Task<ProcessingResult> ConcatenateChunks(string processedFolder, int totalChunks, string finalOutput, string extension, CancellationToken ct)
+    private async Task<ProcessingResult> ConcatenateChunks(string processedFolder, int totalChunks, string finalOutput, string extension, CancellationToken ct, PauseToken pt)
     {
         string tempFolder = Path.GetDirectoryName(processedFolder)!;
         string listPath = Path.Combine(tempFolder, "concat_list.txt");
@@ -292,6 +293,6 @@ internal class ResumableFFmpegExecutor : IResumableFFmpegExecutor
         var args = FFMpegArguments.FromFileInput(listPath, true, opt => opt.WithCustomArgument("-f concat").WithCustomArgument("-safe 0"))
             .OutputToFile(finalOutput, true, opt => opt.WithCustomArgument("-c copy"));
 
-        return await new FFmpegExecutor(_ffmpegPath).ExecuteAsync(listPath, finalOutput, args, 0, null!, ct);
+        return await new FFmpegExecutor(_ffmpegPath).ExecuteAsync(listPath, finalOutput, args, 0, null!, ct, pt);
     }
 }

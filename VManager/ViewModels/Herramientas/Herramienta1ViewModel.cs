@@ -568,6 +568,8 @@ namespace VManager.ViewModels.Herramientas
                 duration = end - start;
             }
 
+            using var effectivePause = CreateEffectivePauseToken();
+
             try
             {
                 var progress = new Progress<IFFmpegProcessor.ProgressInfo>(info =>
@@ -594,7 +596,8 @@ namespace VManager.ViewModels.Herramientas
                     start,
                     duration,
                     progress,
-                    _cts.Token
+                    _cts.Token,
+                    effectivePause.Token
                 );
 
                 if (result.Success)

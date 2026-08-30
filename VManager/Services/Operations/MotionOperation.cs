@@ -39,6 +39,7 @@ namespace VManager.Services.Operations
         /// <param name="isAudio">true si el archivo es solo audio (omite cambio de FPS).</param>
         /// <param name="progress">Reporte de progreso.</param>
         /// <param name="cancellationToken">Token de cancelación.</param>
+        /// <param name="pauseToken">Token de pausa.</param>
         public async Task<ProcessingResult> ExecuteAsync(
             string inputPath,
             string outputPath,
@@ -46,7 +47,8 @@ namespace VManager.Services.Operations
             double speed,
             bool isAudio,
             IProgress<IFFmpegProcessor.ProgressInfo> progress,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            PauseToken pauseToken = default)
         {
             inputPath  = OutputPathBuilder.SanitizeFilename(inputPath);
             outputPath = OutputPathBuilder.SanitizeFilename(outputPath);
@@ -92,7 +94,8 @@ namespace VManager.Services.Operations
                 args,
                 duration,
                 progress,
-                cancellationToken);
+                cancellationToken,
+                pauseToken);
         }
 
         // ── Helpers de filtros ────────────────────────────────────────────────
