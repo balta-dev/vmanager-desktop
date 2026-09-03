@@ -7,6 +7,7 @@
              xmlns:services="clr-namespace:VManager.Services"
              xmlns:herramientas="clr-namespace:VManager.ViewModels.Herramientas"
              xmlns:converters="clr-namespace:VManager.Services.Core.Converters"
+             xmlns:behaviours="clr-namespace:VManager.Behaviours"
              x:Name="Root">
 
   <UserControl.Resources>
@@ -30,7 +31,9 @@
             Background="{DynamicResource PanelBackgroundBrush}"
             HorizontalAlignment="Stretch"
             VerticalAlignment="Stretch"
-            ClipToBounds="True">
+            ClipToBounds="True"
+            behaviours:DragDropHelper.EnableFileDrop="True"
+            behaviours:DragDropHelper.AllowLinks="True">
 
       <ScrollViewer Padding="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AllowAutoHide="True" Background="Transparent">
       
@@ -159,7 +162,7 @@
                             Margin="4"
                             MaxWidth="600">
                         
-                        <Panel>
+                        <Panel Margin = '15 0 0 0'>
                             <Grid RowDefinitions="Auto,Auto,Auto">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="80"/>
@@ -172,7 +175,7 @@
                                         CornerRadius="4"
                                         ClipToBounds="True"
                                         Background="#222"
-                                        Margin="4,0,15,0">
+                                        Margin="-8,0,15,0">
                                     <Panel>
                                         <Image Source="{Binding ThumbnailBitmap}"
                                                Stretch="UniformToFill"

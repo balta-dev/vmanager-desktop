@@ -32,6 +32,10 @@ namespace VManager.Behaviours
         private static readonly AttachedProperty<bool> IsDragOverProperty =
             AvaloniaProperty.RegisterAttached<Control, bool>(
                 "IsDragOver", typeof(DragDropHelper));
+        
+        public static readonly AttachedProperty<bool> AllowLinksProperty =
+            AvaloniaProperty.RegisterAttached<Control, bool>(
+                "AllowLinks", typeof(DragDropHelper));
 
         public static string GetDropTarget(Control control) => control.GetValue(DropTargetProperty);
         public static void SetDropTarget(Control control, string value) => control.SetValue(DropTargetProperty, value);
@@ -41,6 +45,8 @@ namespace VManager.Behaviours
                 "AllowTxt", typeof(DragDropHelper));
         public static bool GetAllowTxt(Control control) => control.GetValue(AllowTxtProperty);
         public static void SetAllowTxt(Control control, bool value) => control.SetValue(AllowTxtProperty, value);
+        public static bool GetAllowLinks(Control control) => control.GetValue(AllowLinksProperty);
+        public static void SetAllowLinks(Control control, bool value) => control.SetValue(AllowLinksProperty, value);
 
         // Only video and audio
         private static readonly string[] VideoExtensions = 
@@ -96,6 +102,24 @@ namespace VManager.Behaviours
             
             if (!e.DataTransfer.Contains(DataFormat.File))
             {
+                if (sender is Control ctrl && GetAllowLinks(ctrl) && e.DataTransfer.Contains(DataFormat.Text))
+                {
+                    var text = e.DataTransfer.TryGetText();
+                    bool isUrl = Uri.TryCreate(text, UriKind.Absolute, out var uri)
+                                 && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+
+                    e.DragEffects = isUrl ? DragDropEffects.Copy : DragDropEffects.None;
+                    e.Handled = isUrl;
+
+                    if (sender is Border linkBorder)
+                    {
+                        if (linkBorder.GetValue(OriginalBackgroundProperty) == null)
+                            linkBorder.SetValue(OriginalBackgroundProperty, linkBorder.Background);
+                        linkBorder.Background = new SolidColorBrush(isUrl ? Colors.LightGreen : Colors.LightCoral, 0.3);
+                    }
+                    return;
+                }
+
                 e.DragEffects = DragDropEffects.None;
                 return;
             }
@@ -194,6 +218,42 @@ namespace VManager.Behaviours
             if (sender is not Control control)
             {
                 Console.WriteLine("Sender no es Control");
+                return;
+            }
+            
+            if (!e.DataTransfer.Contains(DataFormat.File) && GetAllowLinks(control))
+            {
+                var text = e.DataTransfer.TryGetText();
+
+                if (sender is Border linkBorderCleanup)
+                {
+                    var originalBg = linkBorderCleanup.GetValue(OriginalBackgroundProperty);
+                    linkBorderCleanup.Background = originalBg ?? Brushes.Transparent;
+                    linkBorderCleanup.ClearValue(OriginalBackgroundProperty);
+                }
+
+                if (Uri.TryCreate(text, UriKind.Absolute, out var uri) &&
+                    (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+                {
+                    var dcLink = FindDataContext(control);
+                    var addUrlMethod = dcLink?.GetType().GetMethod("AddUrl", new[] { typeof(string) });
+
+                    if (dcLink != null && addUrlMethod != null)
+                    {
+                        addUrlMethod.Invoke(dcLink, new object[] { text! });
+                        ShowSuccessFeedback(control);
+                    }
+                    else
+                    {
+                        ShowErrorFeedback(control);
+                    }
+                }
+                else
+                {
+                    ShowErrorFeedback(control);
+                }
+
+                e.Handled = true;
                 return;
             }
             
